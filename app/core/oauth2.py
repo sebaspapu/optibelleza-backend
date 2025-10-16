@@ -23,12 +23,11 @@ SECREAT_KEY = settings.secret_key
 ALGORITHM = settings.algorithm
 print(oauth2_scheme)
 ACCESS_TOKEN_EXPIRE_MINUTES=1
-def create_access_token(data: Dict[str, Any]):
-    to_encode=data.copy()
-    print(data)
-    expire=datetime.utcnow() + timedelta(minutes=1)
-    to_encode.update({"exp":expire})
-    encoded_jwt=jwt.encode(data, SECREAT_KEY, 'HS256')
+def create_access_token(data: dict):
+    to_encode = data.copy()
+    expire = datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    to_encode.update({"exp": expire})
+    encoded_jwt = jwt.encode(to_encode, SECREAT_KEY, algorithm=ALGORITHM)
     return encoded_jwt
 def verify_access_token(token: str,credintials_exception):
         try:
