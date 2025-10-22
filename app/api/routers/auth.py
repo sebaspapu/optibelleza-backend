@@ -33,7 +33,7 @@ async def admin_signal():
 
 #@router.post("/users",response_model=schemas.UserOut)
 @router.post("/api/auth/register",response_model=schemas.UserOut)
-async def create_post(users:schemas.UserCreate,db: Session= Depends(get_db),origin: str = Header(None)):
+async def create_user(users:schemas.UserCreate,db: Session= Depends(get_db),origin: str = Header(None)):
     hashed_password=pwd_context.hash(users.password)
     users.password=hashed_password
     try:
