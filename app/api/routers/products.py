@@ -95,3 +95,13 @@ def read(db: Session = Depends(get_db),current_user:int=Depends(oauth2.get_curre
     
 
     return product_mounts_list
+
+# GET A PRODUCT MOUNTS BY ID
+#@router.get("/get_post/{id}",response_model=schemas.Shoes)
+@router.get("/api/products/:{id}",response_model=schemas.ProductMounts)
+def get_product_mount_by_id(id:int,db: Session = Depends(get_db),current_user:int=Depends(oauth2.get_current_user)):
+    #posts=db.execute(text("SELECT * FROM POSTS WHERE id=:id"),{"id":id})
+    product_mount_by_id=db.query(models.Product).filter(models.Product.id==id).first()
+    if product_mount_by_id==None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,detail=f"Montura con id: {id}, no fue encontrada")
+    return product_mount_by_id
