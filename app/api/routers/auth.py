@@ -103,3 +103,10 @@ async def login_user(
 
     return {"token": access_token, "status": "ok"}
 
+
+#@router.get("/current_user_info",response_model=schemas.UserInfo)
+@router.get("/api/users/me",response_model=schemas.CurrentUserInfo)
+def get_current_user_info(current_user:int=Depends(oauth2.get_current_user)):
+    # El usuario ya viene validado desde el middleware oauth2.get_current_user
+    user = current_user["user"]
+    return user

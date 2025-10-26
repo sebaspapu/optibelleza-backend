@@ -35,3 +35,13 @@ class Token(BaseModel):
 class Token_data(BaseModel):
     id:int
     role:str
+
+class CurrentUserInfo(BaseModel):
+    
+    user_name:str
+    email:EmailStr
+    user_address:str
+    user_phone_no:str 
+   
+    class Config:
+        from_attributes=True 
