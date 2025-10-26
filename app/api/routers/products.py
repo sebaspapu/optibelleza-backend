@@ -36,7 +36,7 @@ async def client_signal():
 #CRUD
 
 # GET ALL PRODUCT MOUNTS (MORE COMPLETE WITH FILTERS)
-@router.get("/api/products", response_model=List[schemas.ProductMounts])
+@router.get("/api/products", response_model=List[schemas.ProductMounts], tags=["Auth - User"])
 def get_products_mounts_all(
     db: Session = Depends(get_db),
     current_user: int = Depends(oauth2.get_current_user),
@@ -55,7 +55,7 @@ def get_products_mounts_all(
     return products
 
 # GET TYPE=FEATURED (OPTIONAL)
-@router.get("/api/featured_product_mounts", response_model=List[schemas.ProductMounts])
+@router.get("/api/featured_product_mounts", response_model=List[schemas.ProductMounts], tags=["Auth - User"])
 def read(db: Session = Depends(get_db),current_user:int=Depends(oauth2.get_current_user)):
      
     product_mounts_list = db.query(product_models.Product).filter(product_models.Product.product_mounts_type=="Featured").all()
@@ -64,7 +64,7 @@ def read(db: Session = Depends(get_db),current_user:int=Depends(oauth2.get_curre
     return product_mounts_list
 
 # GET TYPE=NEW (OPTIONAL)
-@router.get("/api/new_product_mounts", response_model=List[schemas.ProductMounts])
+@router.get("/api/new_product_mounts", response_model=List[schemas.ProductMounts], tags=["Auth - User"])
 def read(db: Session = Depends(get_db),current_user:int=Depends(oauth2.get_current_user)):
      
     product_mounts_list = db.query(product_models.Product).filter(product_models.Product.product_mounts_type=="New").all()
@@ -74,7 +74,7 @@ def read(db: Session = Depends(get_db),current_user:int=Depends(oauth2.get_curre
 
 # GET A PRODUCT MOUNTS BY ID
 #@router.get("/get_post/{id}",response_model=schemas.Shoes)
-@router.get("/api/products/{id}",response_model=schemas.ProductMounts)
+@router.get("/api/products/{id}",response_model=schemas.ProductMounts, tags=["Auth - User"])
 def get_product_mount_by_id(id:int,db: Session = Depends(get_db),current_user:int=Depends(oauth2.get_current_user)):
     #posts=db.execute(text("SELECT * FROM POSTS WHERE id=:id"),{"id":id})
     product_mount_by_id=db.query(product_models.Product).filter(product_models.Product.id==id).first()
@@ -83,7 +83,7 @@ def get_product_mount_by_id(id:int,db: Session = Depends(get_db),current_user:in
     return product_mount_by_id
 
 # CREATE PRODUCT MOUNTS
-@router.post("/api/admin/products")
+@router.post("/api/admin/products", tags=["Auth - Admin"])
 async def create_product_mounts(product_mounts:schemas.ProductMountsCreate,db: Session = Depends(get_db),current_user:int=Depends(oauth2.is_admin_middleware),origin: str = Header(None)):
     new_product_mounts=product_models.Product(**product_mounts.dict())
 
@@ -99,7 +99,7 @@ async def create_product_mounts(product_mounts:schemas.ProductMountsCreate,db: S
 
 # UPDATE A PRODUCT MOUNTS BY ID
 #@router.put("/updateshoes/{id}")
-@router.put("/api/admin/products/{id}")
+@router.put("/api/admin/products/{id}", tags=["Auth - Admin"])
 async def update_product_mount_by_id(id:int,post:schemas.ProductMountsUpdate,db: Session = Depends(get_db),current_user:int=Depends(oauth2.is_admin_middleware),origin: str = Header(None)):
     product_query=db.query(product_models.Product).filter(product_models.Product.id==id)
     cart_query=db.query(cart_models.Cart).filter(cart_models.Cart.product_id==id)
@@ -127,7 +127,7 @@ async def update_product_mount_by_id(id:int,post:schemas.ProductMountsUpdate,db:
 
 # DELETE A PRODUCT MOUNTS BY ID
 #@router.get("/delete_shoes/{id}")
-@router.delete("/api/admin/products/{id}")
+@router.delete("/api/admin/products/{id}", tags=["Auth - Admin"])
 async def delete_product_mount_by_id(id:int,db: Session = Depends(get_db),current_user:int=Depends(oauth2.is_admin_middleware),origin: str = Header(None)):
     
     product_query = db.query(product_models.Product).filter(product_models.Product.id == id)
