@@ -84,7 +84,7 @@ def get_product_mount_by_id(id:int,db: Session = Depends(get_db),current_user:in
 
 # CREATE PRODUCT MOUNTS
 @router.post("/api/admin/products")
-async def create_product_mounts(product_mounts:schemas.ProductMountsCreate,db: Session = Depends(get_db),current_user:int=Depends(oauth2.verify_admin),origin: str = Header(None)):
+async def create_product_mounts(product_mounts:schemas.ProductMountsCreate,db: Session = Depends(get_db),current_user:int=Depends(oauth2.is_admin_middleware),origin: str = Header(None)):
     new_product_mounts=product_models.Product(**product_mounts.dict())
 
     db.add(new_product_mounts)
@@ -100,7 +100,7 @@ async def create_product_mounts(product_mounts:schemas.ProductMountsCreate,db: S
 # UPDATE A PRODUCT MOUNTS BY ID
 #@router.put("/updateshoes/{id}")
 @router.put("/api/admin/products/{id}")
-async def update_product_mount_by_id(id:int,post:schemas.ProductMountsUpdate,db: Session = Depends(get_db),current_user:int=Depends(oauth2.verify_admin),origin: str = Header(None)):
+async def update_product_mount_by_id(id:int,post:schemas.ProductMountsUpdate,db: Session = Depends(get_db),current_user:int=Depends(oauth2.is_admin_middleware),origin: str = Header(None)):
     product_query=db.query(product_models.Product).filter(product_models.Product.id==id)
     cart_query=db.query(cart_models.Cart).filter(cart_models.Cart.product_id==id)
     product = product_query.first()
@@ -128,7 +128,7 @@ async def update_product_mount_by_id(id:int,post:schemas.ProductMountsUpdate,db:
 # DELETE A PRODUCT MOUNTS BY ID
 #@router.get("/delete_shoes/{id}")
 @router.delete("/api/admin/products/{id}")
-async def delete_product_mount_by_id(id:int,db: Session = Depends(get_db),current_user:int=Depends(oauth2.verify_admin),origin: str = Header(None)):
+async def delete_product_mount_by_id(id:int,db: Session = Depends(get_db),current_user:int=Depends(oauth2.is_admin_middleware),origin: str = Header(None)):
     
     product_query = db.query(product_models.Product).filter(product_models.Product.id == id)
     product = product_query.first()
