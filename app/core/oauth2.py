@@ -98,3 +98,18 @@ async def get_current_user(
 
     return {"user": user, "token_data": token_data}
 
+async def verify_admin(current_user: dict = Depends(get_current_user)):
+    """Dependencia para verificar que el usuario autenticado tiene rol de administrador.
+
+    Retorna el `current_user` si el rol es 'admin' (case-insensitive),
+    de lo contrario lanza HTTP 403 Forbidden.
+    """
+    token_data = current_user.get("token_data")
+    role = getattr(token_data, "role", None)
+    if role is None or str(role).lower() != "admin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="No tienes permisos de administrador",
+        )
+
+    return current_user
