@@ -98,11 +98,15 @@ async def get_current_user(
 
     return {"user": user, "token_data": token_data}
 
-async def verify_admin(current_user: dict = Depends(get_current_user)):
-    """Dependencia para verificar que el usuario autenticado tiene rol de administrador.
-
-    Retorna el `current_user` si el rol es 'admin' (case-insensitive),
-    de lo contrario lanza HTTP 403 Forbidden.
+#async def verify_admin(current_user: dict = Depends(get_current_user)):
+async def is_admin_middleware(current_user: dict = Depends(get_current_user)):
+    """Middleware que verifica si el usuario autenticado tiene rol de administrador.
+    
+    Criterios según HU:
+    - Se ejecuta después de la autenticación (via Depends)
+    - Verifica el rol en el token JWT
+    - Permite continuar si rol es 'ADMIN'
+    - Devuelve 403 si no es admin
     """
     token_data = current_user.get("token_data")
     role = getattr(token_data, "role", None)

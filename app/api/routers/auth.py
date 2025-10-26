@@ -105,8 +105,8 @@ async def login_user(
     )
     
     # For testing password hashing for admin creation
-    #pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-    #print(pwd_context.hash("123456"))
+    pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+    print(pwd_context.hash("123456"))
 
     return {"token": access_token, "status": "ok"}
 
