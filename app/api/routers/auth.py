@@ -2,12 +2,17 @@ from fastapi import FastAPI,Depends,HTTPException,APIRouter,status,Header
 from sqlalchemy.orm import Session
 from db.session import get_db
 import models.user as models
+import models.admin as models_admin
 import core.security as utils
 import core.oauth2 as oauth2
 from sqlalchemy.exc import IntegrityError
 from core.security import pwd_context
 from typing import List
 import schemas.user as schemas
+import schemas.admin as schemas_admin
+
+from passlib.context import CryptContext
+from passlib.exc import UnknownHashError
 
 
 from infra.websocket import websocket_connections,websocket_connections_admin
@@ -99,7 +104,9 @@ async def login_user(
         data={"user_id": user.id, "role": "user"}
     )
     
-   
+    # For testing password hashing for admin creation
+    #pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+    #print(pwd_context.hash("123456"))
 
     return {"token": access_token, "status": "ok"}
 
@@ -110,3 +117,33 @@ def get_current_user_info(current_user:int=Depends(oauth2.get_current_user)):
     # El usuario ya viene validado desde el middleware oauth2.get_current_user
     user = current_user["user"]
     return user
+
+#login admin (v1)
+#@router.post("/login_admin")
+@router.post("/api/auth/admin")
+def login_admin(admin_cred: schemas_admin.AdminLogin, db: Session = Depends(get_db)):
+    admin_query = db.query(models_admin.Admin).filter(models_admin.Admin.email == admin_cred.email)
+    admin = admin_query.first()
+
+    if not admin:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="invalid credentials"
+        )
+
+    try:
+        if not utils.verify(admin_cred.password, admin.password):
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="invalid credentials"
+            )
+    except UnknownHashError:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid password format or unsupported hash."
+        )
+
+    access_token = oauth2.create_access_token(data={"user_id": admin.id, "role": "admin"})
+    db.commit()
+
+    return {"token": access_token, "status": "ok"}
