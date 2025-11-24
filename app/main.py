@@ -29,8 +29,8 @@ app.include_router(auth.router)
 app.include_router(products.router)
 print("hello")
 
-@app.get("/")
-def root():
+@app.get("/", tags=["Root"])
+def is_running():
     return {"message": "🚀 Optibelleza API is running successfully!"}
 
 

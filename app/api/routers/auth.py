@@ -37,7 +37,7 @@ async def admin_signal():
        return
 
 #@router.post("/users",response_model=schemas.UserOut)
-@router.post("/api/auth/register",response_model=schemas.UserOut)
+@router.post("/api/auth/register",response_model=schemas.UserOut, tags=["Auth - User"])
 async def create_user(users:schemas.UserCreate,db: Session= Depends(get_db),origin: str = Header(None)):
     hashed_password=pwd_context.hash(users.password)
     users.password=hashed_password
@@ -61,7 +61,7 @@ async def create_user(users:schemas.UserCreate,db: Session= Depends(get_db),orig
 
 
 #@router.post("/login_user")
-@router.post("/api/auth/login")
+@router.post("/api/auth/login", tags=["Auth - User"])
 async def login_user(
     user_cred: schemas.UserLogin,
     db: Session = Depends(get_db),
@@ -112,7 +112,7 @@ async def login_user(
 
 
 #@router.get("/current_user_info",response_model=schemas.UserInfo)
-@router.get("/api/users/me",response_model=schemas.CurrentUserInfo)
+@router.get("/api/users/me",response_model=schemas.CurrentUserInfo, tags=["Auth - User"])
 def get_current_user_info(current_user:int=Depends(oauth2.get_current_user)):
     # El usuario ya viene validado desde el middleware oauth2.get_current_user
     user = current_user["user"]
@@ -120,7 +120,7 @@ def get_current_user_info(current_user:int=Depends(oauth2.get_current_user)):
 
 #login admin (v1)
 #@router.post("/login_admin")
-@router.post("/api/auth/admin")
+@router.post("/api/auth/admin", tags=["Auth - Admin"])
 def login_admin(admin_cred: schemas_admin.AdminLogin, db: Session = Depends(get_db)):
     admin_query = db.query(models_admin.Admin).filter(models_admin.Admin.email == admin_cred.email)
     admin = admin_query.first()
