@@ -1,6 +1,7 @@
 # Ecommerce Website - Guía de Ejecución Local
 
-Este proyecto contiene un backend (FastAPI). Aquí tienes los pasos y detalles para levantarlo en tu máquina sin depender de servicios externos.
+Este proyecto implementa un backend desarrollado con FastAPI para la aplicación Ecommerce Website.
+En este documento encontrarás las instrucciones necesarias para instalar dependencias, configurar variables de entorno y ejecutar el servidor localmente.
 
 ---
 

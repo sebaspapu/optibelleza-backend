@@ -36,7 +36,7 @@ async def client_signal():
 #CRUD
 
 # GET ALL PRODUCT MOUNTS (MORE COMPLETE WITH FILTERS)
-@router.get("/api/products", response_model=List[schemas.ProductMounts], tags=["Auth - User"])
+@router.get("/api/products", response_model=List[schemas.Shoes], tags=["Auth - User"])
 def get_products_mounts_all(
     db: Session = Depends(get_db),
     current_user: int = Depends(oauth2.get_current_user),
@@ -45,66 +45,66 @@ def get_products_mounts_all(
     limit: int = Query(10, ge=1, le=100, description="Límite de resultados por página"),
     skip: int = Query(0, ge=0, description="Offset de resultados"),
 ):
-    query = db.query(product_models.Product)
+    query = db.query(product_models.Shoes)
     if category:
-        query = query.filter(product_models.Product.product_mounts_category.ilike(f"%{category}%"))
+        query = query.filter(product_models.Shoes.shoes_category.ilike(f"%{category}%"))
     if type:
-        query = query.filter(product_models.Product.product_mounts_type == type.capitalize())
+        query = query.filter(product_models.Shoes.shoes_type == type.capitalize())
     
     products = query.offset(skip).limit(limit).all()
     return products
 
 # GET TYPE=FEATURED (OPTIONAL)
-@router.get("/api/featured_product_mounts", response_model=List[schemas.ProductMounts], tags=["Auth - User"])
+@router.get("/api/featured_product_mounts", response_model=List[schemas.Shoes], tags=["Auth - User"])
 def read(db: Session = Depends(get_db),current_user:int=Depends(oauth2.get_current_user)):
      
-    product_mounts_list = db.query(product_models.Product).filter(product_models.Product.product_mounts_type=="Featured").all()
+    product_mounts_list = db.query(product_models.Shoes).filter(product_models.Shoes.shoes_type=="Featured").all()
 
     # Prepare a dictionary with all the required fields
     return product_mounts_list
 
 # GET TYPE=NEW (OPTIONAL)
-@router.get("/api/new_product_mounts", response_model=List[schemas.ProductMounts], tags=["Auth - User"])
+@router.get("/api/new_product_mounts", response_model=List[schemas.Shoes], tags=["Auth - User"])
 def read(db: Session = Depends(get_db),current_user:int=Depends(oauth2.get_current_user)):
      
-    product_mounts_list = db.query(product_models.Product).filter(product_models.Product.product_mounts_type=="New").all()
+    product_mounts_list = db.query(product_models.Shoes).filter(product_models.Shoes.shoes_type=="New").all()
    
     # Prepare a dictionary with all the required fields
     return product_mounts_list
 
 # GET A PRODUCT MOUNTS BY ID
 #@router.get("/get_post/{id}",response_model=schemas.Shoes)
-@router.get("/api/products/{id}",response_model=schemas.ProductMounts, tags=["Auth - User"])
+@router.get("/api/products/{id}",response_model=schemas.Shoes, tags=["Auth - User"])
 def get_product_mount_by_id(id:int,db: Session = Depends(get_db),current_user:int=Depends(oauth2.get_current_user)):
     #posts=db.execute(text("SELECT * FROM POSTS WHERE id=:id"),{"id":id})
-    product_mount_by_id=db.query(product_models.Product).filter(product_models.Product.id==id).first()
+    product_mount_by_id=db.query(product_models.Shoes).filter(product_models.Shoes.id==id).first()
     if product_mount_by_id==None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,detail=f"Montura con id: {id}, no fue encontrada")
     return product_mount_by_id
 
 # CREATE PRODUCT MOUNTS
 @router.post("/api/admin/products", tags=["Auth - Admin"])
-async def create_product_mounts(product_mounts:schemas.ProductMountsCreate,db: Session = Depends(get_db),current_user:int=Depends(oauth2.is_admin_middleware),origin: str = Header(None)):
-    new_product_mounts=product_models.Product(**product_mounts.dict())
+async def create_product_mounts(shoes:schemas.ShoesCreate,db: Session = Depends(get_db),current_user:int=Depends(oauth2.is_admin_middleware),origin: str = Header(None)):
+    new_shoes=product_models.Shoes(**shoes.dict())
 
-    db.add(new_product_mounts)
+    db.add(new_shoes)
     
     db.commit()
-    db.refresh(new_product_mounts)
+    db.refresh(new_shoes)
     if str(origin)=="http://localhost:3000":
         # Iterate over connected WebSocket clients and send a message
         
         await client_signal()
-    return new_product_mounts
+    return new_shoes
 
 # UPDATE A PRODUCT MOUNTS BY ID
 #@router.put("/updateshoes/{id}")
 @router.put("/api/admin/products/{id}", tags=["Auth - Admin"])
-async def update_product_mount_by_id(id:int,post:schemas.ProductMountsUpdate,db: Session = Depends(get_db),current_user:int=Depends(oauth2.is_admin_middleware),origin: str = Header(None)):
-    product_query=db.query(product_models.Product).filter(product_models.Product.id==id)
+async def update_product_mount_by_id(id:int,post:schemas.ShoesUpdate,db: Session = Depends(get_db),current_user:int=Depends(oauth2.is_admin_middleware),origin: str = Header(None)):
+    shoes_query=db.query(product_models.Shoes).filter(product_models.Shoes.id==id)
     cart_query=db.query(cart_models.Cart).filter(cart_models.Cart.product_id==id)
-    product = product_query.first()
-    if product is None:
+    shoes = shoes_query.first()
+    if shoes is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Producto con id: {id} no encontrado"
@@ -115,7 +115,7 @@ async def update_product_mount_by_id(id:int,post:schemas.ProductMountsUpdate,db:
         cart_query.update({"product_name": post.name}, synchronize_session=False)
 
     # Actualiza el producto
-    product_query.update(post.dict(), synchronize_session=False)
+    shoes_query.update(post.dict(), synchronize_session=False)
     db.commit()
     
     # Notifica vía WebSocket si es origen local
@@ -130,7 +130,7 @@ async def update_product_mount_by_id(id:int,post:schemas.ProductMountsUpdate,db:
 @router.delete("/api/admin/products/{id}", tags=["Auth - Admin"])
 async def delete_product_mount_by_id(id:int,db: Session = Depends(get_db),current_user:int=Depends(oauth2.is_admin_middleware),origin: str = Header(None)):
     
-    product_query = db.query(product_models.Product).filter(product_models.Product.id == id)
+    product_query = db.query(product_models.Shoes).filter(product_models.Shoes.id == id)
     product = product_query.first()
     if product is None:
         raise HTTPException(
