@@ -149,7 +149,7 @@ def login_admin(admin_cred: schemas_admin.AdminLogin, db: Session = Depends(get_
     return {"token": access_token, "status": "ok"}
 
 #logout user
-@router.get("/docs/api/logout_user")
+@router.get("/docs/api/logout_user", tags=["Auth - User"])
 async def logout_user(db: Session = Depends(get_db),current_user:dict=Depends(oauth2.get_current_user),origin: str = Header(None)):
    
     user_id=dict(current_user["token_data"])["id"]
