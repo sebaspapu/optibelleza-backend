@@ -45,11 +45,16 @@ async def client_signal():
 # añadir productos al carro
 @router.post("/api/cart/add_item_cart",response_model=Union[cart.CartOut, cart.OutOfStockMessage], tags=["Shopping Cart"])
 async def add_item_cart(shoes_id:cart.CartAdd,db: Session = Depends(get_db),current_user:int=Depends(oauth2.get_current_user),origin: str = Header(None)):
+    print("\n=== Agregando producto al carrito ===")
     id=dict(current_user["token_data"])["id"]
     print(current_user["token_data"])
+    print(f"👤 Usuario ID: {id}")
     user_email=db.query(models.User).filter(models.User.id==id).first()
     shoes=db.query(product_models.Shoes).filter(product_models.Shoes.id==shoes_id.id).first()
-    print(user_email.email)
+    print(f"📦 Producto ID: {shoes_id.id}")
+    print(f"👞 Nombre del producto: {product_models.Shoes.name}")
+    print(f"💰 Precio: ${product_models.Shoes.price}")
+    print(f"📧 Email del usuario: {user_email.email}")
     cart_all=db.query(models_cart.Cart).filter(models_cart.Cart.owner_email==user_email.email).all()
     new_item=models_cart.Cart(product_id=shoes.id,size=shoes_id.size,product_quantity=shoes_id.product_quantity,owner_email=user_email.email,owner_id=id,product_image=shoes.product_image,price=shoes.price,product_name=shoes.name, shoes_category=shoes.shoes_category)
     shoes_stock=db.query(product_models.Shoes).filter(product_models.Shoes.id==shoes_id.id).first().shoes_stock

@@ -6,12 +6,16 @@ from pydantic_settings import BaseSettings
 class Settings(BaseSettings):
     database_hostname: str = "sqlite"  # use 'sqlite' to trigger local sqlite fallback
     database_password: str = ""
-    database_name: str = "./test.db"
+    database_name: str = "./test2.db"
     database_username: str = ""
     secret_key: str = "demo-secret"
     algorithm: str = "HS256"
     database_port: str = "0"
     aws_secret_key: str = "demo-aws-key"
+    stripe_secret_key: str = "sk_test_51SMhR3Romhy3CPSI8i2b6uJJGQRekrJ93Ux4h7PiKebXz8SL5tBz1TMDC8wHTl0Wu71PkKg0s5J27PhZUgtJgSMM00gEdk1RX6"
+    stripe_webhook_secret: str = "whsec_041f36437aa03daf86b5dbdc952647809bd57b2f850c9e713241a55e04e0fa4e"
+    stripe_publishable_key: str = "pk_test_51SMhR3Romhy3CPSIknU2QhVPXiQVzqCy9Y20zFAJKmuDmfYKHRufSFoh0STIOAWUyCzDGHS7PiEgxIHRTUrqqlg700vKkKiuqC"
+    
     class Config:
         env_file = ".env"
 
