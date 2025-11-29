@@ -44,7 +44,7 @@ async def create_checkout_session(
         # Obtener los items del carrito del usuario
         cart_items = db.query(models_cart.Cart).filter(models_cart.Cart.owner_id == user_id).all()
         print(f"🛒 Items en carrito encontrados: {len(cart_items)}")
-        
+
         if not cart_items:
             print("❌ Error: Carrito vacío")
             raise HTTPException(
@@ -52,24 +52,60 @@ async def create_checkout_session(
                 detail="No hay items en el carrito"
             )
 
+        # Verificar que el usuario exista (fuente de verdad antes de usar user.email)
+        user = db.query(models_user.User).filter(models_user.User.id == user_id).first()
+        if not user:
+            print(f"❌ Usuario no encontrado user_id={user_id}")
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+
         # Transformar items del carrito al formato que Stripe necesita
         print("\n🔄 Transformando items para Stripe:")
+
+        # Agrupar items por product_id para evitar line_items duplicados y tomar precio desde la tabla Shoes
+        agg = {}
+        for it in cart_items:
+            pid = it.product_id
+            if pid not in agg:
+                agg[pid] = {"qty": 0, "row": it}
+            agg[pid]["qty"] += it.product_quantity
+
         line_items = []
-        for item in cart_items:
-            print(f"  📦 Producto: {item.product_name}")
-            print(f"     - Cantidad: {item.product_quantity}")
-            print(f"     - Precio: ${item.price} USD")
+        for pid, info in agg.items():
+            row = info["row"]
+            total_qty = info["qty"]
+
+            # Validar existencia del producto y obtener precio actual desde la tabla Shoes
+            product = db.query(product_models.Shoes).filter(product_models.Shoes.id == pid).first()
+            if not product:
+                print(f"❌ Producto no encontrado en BD product_id={pid}")
+                raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Product {pid} not found")
+
+            # Verificar stock mínimo
+            try:
+                stock = int(product.shoes_stock or 0)
+            except Exception:
+                stock = 0
+            if stock < total_qty:
+                print(f"❌ Stock insuficiente product_id={pid} stock={stock} requested={total_qty}")
+                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Insufficient stock for product {product.name}")
+
+            print(f"  📦 Producto: {product.name}")
+            print(f"     - Cantidad total: {total_qty}")
+            print(f"     - Precio tomado de BD: ${product.price} USD")
+
             line_items.append({
                 'price_data': {
                     'currency': 'usd',
                     'product_data': {
-                        'name': item.product_name,
-                        'images': [item.product_image] if item.product_image else [],
+                        'name': product.name,
+                        'images': [product.product_image] if product.product_image else [],
                     },
-                    'unit_amount': int(item.price * 100),  # Stripe necesita el precio en centavos
+                    'unit_amount': int(product.price * 100),  # Stripe necesita el precio en centavos
                 },
-                'quantity': item.product_quantity,
+                'quantity': total_qty,
             })
+
+        print(f"🔢 Line items finales para Stripe: {len(line_items)}")
 
         print("\n🔐 Configurando sesión de Stripe:")
         print(f"  💳 API Key configurada: {stripe.api_key[:10]}...")
@@ -122,6 +158,9 @@ async def create_checkout_session(
                 detail=f"Error de Stripe: {str(e)}"
             )
 
+    except HTTPException:
+        # Re-raise HTTPException sin envolverla para preservar status codes (400/404 etc.)
+        raise
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
