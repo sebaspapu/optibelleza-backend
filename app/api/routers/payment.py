@@ -151,13 +151,12 @@ async def stripe_webhook(request: Request, db: Session = Depends(get_db)):
         # Manejar el evento de pago completado
         if event['type'] == 'checkout.session.completed':
             session = event['data']['object']
-            
-            # Obtener la conexión a la base de datos
-            db = next(get_db())
-            
+
+            # Usar la sesión `db` inyectada por Depends; no crear una nueva
+            # Evitar `next(get_db())` porque genera una sesión distinta y puede provocar transacciones anidadas
             try:
                 print("\n=== Verificando sesión de pago ===")
-                
+
                 # Obtener la sesión completa de Stripe para tener todos los detalles
                 checkout_session = stripe.checkout.Session.retrieve(
                     session.id,
@@ -165,59 +164,90 @@ async def stripe_webhook(request: Request, db: Session = Depends(get_db)):
                 )
                 print(f"💳 ID de sesión: {checkout_session.id}")
                 print(f"💰 Estado del pago: {checkout_session.payment_status}")
-                
+
                 # Obtener el user_id de los metadatos
                 user_id = int(checkout_session.metadata.get('user_id'))
                 print(f"👤 Usuario ID: {user_id}")
-                
+
                 # Obtener los items del carrito
                 cart_items = db.query(models_cart.Cart).filter(models_cart.Cart.owner_id == user_id).all()
                 if not cart_items:
                     print("⚠️ Advertencia: No se encontraron items en el carrito")
-                    
+
                 # Crear la orden
                 print("\n=== Procesando pago completado ===")
                 user = db.query(models_user.User).filter(models_user.User.id == user_id).first()
                 if not user:
                     print("❌ Error: Usuario no encontrado")
                     raise HTTPException(status_code=404, detail="User not found")
-                
-                for item in cart_items:
-                    new_order = models_orders.Orders(
-                        product_id=item.product_id,
-                        owner_id=user_id,
-                        owner_name=user.user_name,  # Agregado nombre del usuario
-                        owner_email=item.owner_email,
-                        user_address=user.user_address,  # Agregada dirección
-                        product_name=item.product_name,
-                        product_quantity=item.product_quantity,
-                        price=item.price,
-                        product_image=item.product_image,
-                        size=item.size,
-                        shoes_category=item.shoes_category,
-                        payment_status="completed",
-                        payment_id=session.payment_intent,
-                        order_status="confirmed",  # Estado inicial de la orden
-                        payment="stripe",  # Método de pago
-                        shipping_method="standard"  # Método de envío por defecto
-                    )
-                    db.add(new_order)
-                    print(f"✅ Orden creada para {item.product_name}")
-                    
-                    # Actualizar el stock
-                    product = db.query(product_models.Shoes).filter(product_models.Shoes.id == item.product_id).first()
-                    if product:
-                        product.shoes_stock -= item.product_quantity
-                        print(f"📦 Stock actualizado para {product.name}: {product.shoes_stock} unidades")
-                
-                # Limpiar el carrito
-                for item in cart_items:
-                    db.delete(item)
-                
-                db.commit()
-                
+
+                # Debug: mostrar elementos del carrito antes de procesar
+                print(f"🛒 Cart items to process: {len(cart_items)}")
+                for it in cart_items:
+                    print(f"   - cart item product_id={it.product_id} name={it.product_name} qty={it.product_quantity} price={it.price}")
+
+                # Procesar la creación de órdenes y actualización de stock en una transacción
+                try:
+                    # Si la sesión ya tiene una transacción activa, usamos begin_nested()
+                    # para crear un SAVEPOINT y evitar el error de "A transaction is already begun"
+                    if getattr(db, 'in_transaction', None) and db.in_transaction():
+                        tx = db.begin_nested()
+                    else:
+                        tx = db.begin()
+                    with tx:
+                        # Recuperar payment_intent del checkout session expandido si existe
+                        payment_intent_id = None
+                        try:
+                            payment_intent_id = checkout_session.payment_intent
+                        except Exception:
+                            try:
+                                payment_intent_id = checkout_session.get('payment_intent')
+                            except Exception:
+                                payment_intent_id = None
+
+                        for item in cart_items:
+                            new_order = models_orders.Orders(
+                                product_id=item.product_id,
+                                owner_id=user_id,
+                                owner_name=user.user_name,
+                                owner_email=item.owner_email,
+                                user_address=user.user_address,
+                                product_name=item.product_name,
+                                product_quantity=item.product_quantity,
+                                price=item.price,
+                                product_image=item.product_image,
+                                size=item.size,
+                                shoes_category=item.shoes_category,
+                                order_status="confirmed",
+                                payment="stripe",
+                                shipping_method="standard"
+                            )
+                            db.add(new_order)
+                            print(f"✅ Orden creada para {item.product_name}")
+
+                            # Actualizar el stock con una operación UPDATE
+                            db.query(product_models.Shoes).filter(product_models.Shoes.id == item.product_id).update({
+                                "shoes_stock": product_models.Shoes.shoes_stock - item.product_quantity
+                            }, synchronize_session=False)
+                            print(f"📦 Stock programado para decremento product_id={item.product_id} by {item.product_quantity}")
+
+                        # Eliminar todos los items del carrito del usuario en una sola operación
+                        deleted = db.query(models_cart.Cart).filter(models_cart.Cart.owner_id == user_id).delete(synchronize_session=False)
+                        print(f"🗑️  Carrito limpiado, rows deleted: {deleted}")
+
+                    # Al salir del context la transacción se comitea automáticamente si no hubo excepciones
+                    print("✅ Transaction committed: orders created and cart cleared")
+                except Exception as te:
+                    # Si ocurre cualquier error dentro de la transacción, se hace rollback automáticamente al salir del context
+                    print(f"❌ Error durante transacción de ordenes: {te}")
+                    raise
+
             except Exception as e:
-                db.rollback()
+                # Si algo falló, aseguramos rollback de la sesión inyectada
+                try:
+                    db.rollback()
+                except Exception:
+                    pass
                 raise HTTPException(
                     status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                     detail=f"Error procesando la orden: {str(e)}"

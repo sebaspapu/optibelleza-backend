@@ -8,6 +8,7 @@ from sqlalchemy.orm import relationship
 class Orders(Base):
     __tablename__ = "orders"
     order_id = Column(Integer, primary_key=True, autoincrement=True, nullable=False)
+    product_id = Column(Integer, ForeignKey("shoes.id", ondelete="SET NULL"), nullable=True)
     owner_name = Column(String, nullable=False)
     owner_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
     owner_email = Column(String, nullable=False)
