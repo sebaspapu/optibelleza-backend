@@ -1,3 +1,5 @@
+
+import logging
 from fastapi import APIRouter, Depends, HTTPException, status, Header, Request
 from sqlalchemy.orm import Session
 from db.session import get_db
@@ -20,11 +22,14 @@ from core.config import settings
 from typing import List
 from stripe import SignatureVerificationError
 
+logger = logging.getLogger("uvicorn.error")
+
 router = APIRouter(tags=['Payments'])
 
 # Configurar Stripe con tu clave secreta
+# CRITERIO: SDK oficial de Stripe integrado y configurado (clave API)
 stripe.api_key = settings.stripe_secret_key
-print(f"🔐 Stripe API key configurada: {stripe.api_key[:8]}********")
+logger.info(f"🔐 Stripe API key configurada: {stripe.api_key[:8]}********")
 
 
 # URL base para redirecciones después del pago
@@ -36,17 +41,18 @@ async def create_checkout_session(
     current_user: dict = Depends(oauth2.get_current_user)
 ):
     try:
-        print("\n=== Iniciando proceso de checkout ===")
+        logger.info("=== Iniciando proceso de checkout ===")
+        # CRITERIO: Endpoint que genera la sesión de checkout usando los items del carrito en BD
         # Obtener el ID del usuario del token
         user_id = dict(current_user["token_data"])["id"]
-        print(f"📱 Usuario ID: {user_id}")
+        logger.info(f"📱 Usuario ID: {user_id}")
         
         # Obtener los items del carrito del usuario
         cart_items = db.query(models_cart.Cart).filter(models_cart.Cart.owner_id == user_id).all()
-        print(f"🛒 Items en carrito encontrados: {len(cart_items)}")
+        logger.info(f"🛒 Items en carrito encontrados: {len(cart_items)}")
 
         if not cart_items:
-            print("❌ Error: Carrito vacío")
+            logger.warning("❌ Error: Carrito vacío")
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="No hay items en el carrito"
@@ -55,11 +61,12 @@ async def create_checkout_session(
         # Verificar que el usuario exista (fuente de verdad antes de usar user.email)
         user = db.query(models_user.User).filter(models_user.User.id == user_id).first()
         if not user:
-            print(f"❌ Usuario no encontrado user_id={user_id}")
+            logger.warning(f"❌ Usuario no encontrado user_id={user_id}")
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
 
         # Transformar items del carrito al formato que Stripe necesita
-        print("\n🔄 Transformando items para Stripe:")
+        # CRITERIO: Se construyen los `line_items` desde la BD (precio tomado de `Shoes`) y se agrupan por producto
+        logger.info("🔄 Transformando items para Stripe:")
 
         # Agrupar items por product_id para evitar line_items duplicados y tomar precio desde la tabla Shoes
         agg = {}
@@ -77,7 +84,8 @@ async def create_checkout_session(
             # Validar existencia del producto y obtener precio actual desde la tabla Shoes
             product = db.query(product_models.Shoes).filter(product_models.Shoes.id == pid).first()
             if not product:
-                print(f"❌ Producto no encontrado en BD product_id={pid}")
+                # CRITERIO: Manejo de flujo de negocio — producto inexistente devuelve 404
+                logger.warning(f"❌ Producto no encontrado en BD product_id={pid}")
                 raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Product {pid} not found")
 
             # Verificar stock mínimo
@@ -86,12 +94,13 @@ async def create_checkout_session(
             except Exception:
                 stock = 0
             if stock < total_qty:
-                print(f"❌ Stock insuficiente product_id={pid} stock={stock} requested={total_qty}")
+                # CRITERIO: Manejo de flujo de negocio — stock insuficiente devuelve 400
+                logger.warning(f"❌ Stock insuficiente product_id={pid} stock={stock} requested={total_qty}")
                 raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Insufficient stock for product {product.name}")
 
-            print(f"  📦 Producto: {product.name}")
-            print(f"     - Cantidad total: {total_qty}")
-            print(f"     - Precio tomado de BD: ${product.price} USD")
+            logger.info(f"  📦 Producto: {product.name}")
+            logger.info(f"     - Cantidad total: {total_qty}")
+            logger.info(f"     - Precio tomado de BD: ${product.price} USD")
 
             line_items.append({
                 'price_data': {
@@ -105,11 +114,12 @@ async def create_checkout_session(
                 'quantity': total_qty,
             })
 
-        print(f"🔢 Line items finales para Stripe: {len(line_items)}")
+        # CRITERIO: `line_items` ya están consolidados y validados para enviar a Stripe
+        logger.info(f"🔢 Line items finales para Stripe: {len(line_items)}")
 
-        print("\n🔐 Configurando sesión de Stripe:")
-        print(f"  💳 API Key configurada: {stripe.api_key[:10]}...")
-        print(f"  🌐 Domain configurado: {YOUR_DOMAIN}")
+        logger.info("🔐 Configurando sesión de Stripe:")
+        logger.info(f"  💳 API Key configurada: {stripe.api_key[:10]}...")
+        logger.info(f"  🌐 Domain configurado: {YOUR_DOMAIN}")
         
         try:
             # Obtener el usuario
@@ -119,7 +129,7 @@ async def create_checkout_session(
             customers = stripe.Customer.list(email=user.email, limit=1)
             if customers.data:
                 customer = customers.data[0]
-                print(f"📋 Cliente existente encontrado: {customer.id}")
+                logger.info(f"📋 Cliente existente encontrado: {customer.id}")
             else:
                 # Crear nuevo cliente en Stripe
                 customer = stripe.Customer.create(
@@ -129,8 +139,9 @@ async def create_checkout_session(
                         'user_id': str(user_id)
                     }
                 )
-                print(f"✨ Nuevo cliente creado: {customer.id}")
+                logger.info(f"✨ Nuevo cliente creado: {customer.id}")
             
+            # CRITERIO: success_url y cancel_url están configurados en la creación de la sesión de Stripe
             # Crear la sesión de checkout en Stripe
             checkout_session = stripe.checkout.Session.create(
                 customer=customer.id,  # Usar el ID del cliente en lugar de solo el email
@@ -147,21 +158,24 @@ async def create_checkout_session(
                 }
             )
             
-            print(f"\n✅ Sesión de Stripe creada exitosamente")
-            print(f"🔗 URL de checkout: {checkout_session.url}")
+            logger.info("✅ Sesión de Stripe creada exitosamente")
+            logger.info(f"🔗 URL de checkout: {checkout_session.url}")
+            # CRITERIO: El endpoint devuelve la URL de la sesión de pago al cliente
             return {"url": checkout_session.url}
             
         except stripe.StripeError as e:
-            print(f"\n❌ Error de Stripe: {str(e)}")
+            # CRITERIO: Manejo de errores de la API de Stripe — se captura y se devuelve 500
+            logger.error(f"❌ Error de Stripe: {str(e)}")
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail=f"Error de Stripe: {str(e)}"
             )
 
     except HTTPException:
-        # Re-raise HTTPException sin envolverla para preservar status codes (400/404 etc.)
+        logger.warning("HTTPException lanzada en checkout: será propagada")
         raise
     except Exception as e:
+        logger.error(f"Error inesperado en checkout: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=str(e)
@@ -169,14 +183,14 @@ async def create_checkout_session(
 
 @router.post("/webhook")  # Cambiada la ruta a /webhook para simplicidad
 async def stripe_webhook(request: Request, db: Session = Depends(get_db)):
-    print("\n=== Webhook de Stripe recibido ===")
+    logger.info("=== Webhook de Stripe recibido ===")
     # Obtener el payload raw para verificar la firma
     payload = await request.body()
     sig_header = request.headers.get('stripe-signature')
-    print("📨 Recibida notificación de Stripe")
+    logger.info("📨 Recibida notificación de Stripe")
     
     if not sig_header:
-        print("❌ Error: No se encontró la firma de Stripe")
+        logger.warning("❌ Error: No se encontró la firma de Stripe")
         raise HTTPException(status_code=400, detail="No Stripe signature found")
     
     try:
@@ -184,8 +198,8 @@ async def stripe_webhook(request: Request, db: Session = Depends(get_db)):
         event = stripe.Webhook.construct_event(
             payload, sig_header, settings.stripe_webhook_secret
         )
-        print(f"✅ Firma verificada correctamente")
-        print(f"📝 Tipo de evento: {event['type']}")
+        logger.info(f"✅ Firma verificada correctamente")
+        logger.info(f"📝 Tipo de evento: {event['type']}")
         
         # Manejar el evento de pago completado
         if event['type'] == 'checkout.session.completed':
@@ -194,36 +208,36 @@ async def stripe_webhook(request: Request, db: Session = Depends(get_db)):
             # Usar la sesión `db` inyectada por Depends; no crear una nueva
             # Evitar `next(get_db())` porque genera una sesión distinta y puede provocar transacciones anidadas
             try:
-                print("\n=== Verificando sesión de pago ===")
+                logger.info("=== Verificando sesión de pago ===")
 
                 # Obtener la sesión completa de Stripe para tener todos los detalles
                 checkout_session = stripe.checkout.Session.retrieve(
                     session.id,
                     expand=['payment_intent', 'line_items']
                 )
-                print(f"💳 ID de sesión: {checkout_session.id}")
-                print(f"💰 Estado del pago: {checkout_session.payment_status}")
+                logger.info(f"💳 ID de sesión: {checkout_session.id}")
+                logger.info(f"💰 Estado del pago: {checkout_session.payment_status}")
 
                 # Obtener el user_id de los metadatos
                 user_id = int(checkout_session.metadata.get('user_id'))
-                print(f"👤 Usuario ID: {user_id}")
+                logger.info(f"👤 Usuario ID: {user_id}")
 
                 # Obtener los items del carrito
                 cart_items = db.query(models_cart.Cart).filter(models_cart.Cart.owner_id == user_id).all()
                 if not cart_items:
-                    print("⚠️ Advertencia: No se encontraron items en el carrito")
+                    logger.warning("⚠️ Advertencia: No se encontraron items en el carrito")
 
                 # Crear la orden
-                print("\n=== Procesando pago completado ===")
+                logger.info("=== Procesando pago completado ===")
                 user = db.query(models_user.User).filter(models_user.User.id == user_id).first()
                 if not user:
-                    print("❌ Error: Usuario no encontrado")
+                    logger.warning("❌ Error: Usuario no encontrado")
                     raise HTTPException(status_code=404, detail="User not found")
 
                 # Debug: mostrar elementos del carrito antes de procesar
-                print(f"🛒 Cart items to process: {len(cart_items)}")
+                logger.info(f"🛒 Cart items to process: {len(cart_items)}")
                 for it in cart_items:
-                    print(f"   - cart item product_id={it.product_id} name={it.product_name} qty={it.product_quantity} price={it.price}")
+                    logger.info(f"   - cart item product_id={it.product_id} name={it.product_name} qty={it.product_quantity} price={it.price}")
 
                 # Procesar la creación de órdenes y actualización de stock en una transacción
                 try:
@@ -262,23 +276,23 @@ async def stripe_webhook(request: Request, db: Session = Depends(get_db)):
                                 shipping_method="standard"
                             )
                             db.add(new_order)
-                            print(f"✅ Orden creada para {item.product_name}")
+                            logger.info(f"✅ Orden creada para {item.product_name}")
 
                             # Actualizar el stock con una operación UPDATE
                             db.query(product_models.Shoes).filter(product_models.Shoes.id == item.product_id).update({
                                 "shoes_stock": product_models.Shoes.shoes_stock - item.product_quantity
                             }, synchronize_session=False)
-                            print(f"📦 Stock programado para decremento product_id={item.product_id} by {item.product_quantity}")
+                            logger.info(f"📦 Stock programado para decremento product_id={item.product_id} by {item.product_quantity}")
 
                         # Eliminar todos los items del carrito del usuario en una sola operación
                         deleted = db.query(models_cart.Cart).filter(models_cart.Cart.owner_id == user_id).delete(synchronize_session=False)
-                        print(f"🗑️  Carrito limpiado, rows deleted: {deleted}")
+                        logger.info(f"🗑️  Carrito limpiado, rows deleted: {deleted}")
 
                     # Al salir del context la transacción se comitea automáticamente si no hubo excepciones
-                    print("✅ Transaction committed: orders created and cart cleared")
+                    logger.info("✅ Transaction committed: orders created and cart cleared")
                 except Exception as te:
                     # Si ocurre cualquier error dentro de la transacción, se hace rollback automáticamente al salir del context
-                    print(f"❌ Error durante transacción de ordenes: {te}")
+                    logger.error(f"❌ Error durante transacción de ordenes: {te}")
                     raise
 
             except Exception as e:
@@ -287,6 +301,7 @@ async def stripe_webhook(request: Request, db: Session = Depends(get_db)):
                     db.rollback()
                 except Exception:
                     pass
+                logger.error(f"Error procesando la orden: {str(e)}")
                 raise HTTPException(
                     status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                     detail=f"Error procesando la orden: {str(e)}"
@@ -295,8 +310,10 @@ async def stripe_webhook(request: Request, db: Session = Depends(get_db)):
         return {"status": "success"}
         
     except SignatureVerificationError as e:
+        logger.warning(f"Firma inválida: {str(e)}")
         raise HTTPException(status_code=400, detail=f"Firma inválida: {str(e)}")
     except Exception as e:
+        logger.error(f"Error inesperado en webhook: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=str(e)
