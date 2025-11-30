@@ -7,7 +7,7 @@ import os
 # Support Postgres (production) and a local SQLite fallback for demos/tests.
 if settings.database_hostname == "sqlite":
     # Use a local file-based sqlite database. Path comes from settings.database_name.
-    db_path = settings.database_name or "./test.db"
+    db_path = settings.database_name or "./test2.db"
     SQLALCHEMY_DATABASE_URL = f"sqlite:///{os.path.abspath(db_path)}"
     # For SQLite, need check_same_thread=False when using with multiple threads.
     engine = create_engine(SQLALCHEMY_DATABASE_URL, connect_args={"check_same_thread": False})

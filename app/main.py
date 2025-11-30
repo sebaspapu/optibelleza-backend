@@ -15,6 +15,7 @@ from api.routers import auth
 from api.routers import products
 from api.routers import cart
 from api.routers import order
+from api.routers import payment
 
 # Middleware setup
 from middlewares.cors import setup_cors
@@ -31,6 +32,7 @@ app.include_router(auth.router)
 app.include_router(products.router)
 app.include_router(cart.router)
 app.include_router(order.router)
+app.include_router(payment.router)
 print("hello")
 
 @app.get("/", tags=["Root"])

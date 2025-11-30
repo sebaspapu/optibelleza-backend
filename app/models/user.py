@@ -17,3 +17,7 @@ class User(Base):
     total_purchase = Column(Integer, nullable=False, server_default=text('0'))
     user_address = Column(String, nullable=False, server_default=text("'None'"))  # Added single quotes around 'None'
     user_phone_no = Column(String, nullable=False, server_default=text("''"))  # Set default to empty string
+    payment_status = Column(String, nullable=False, server_default=text("'pending'"))
+    payment_id = Column(String, nullable=True)
+    stripe_session_id = Column(String, nullable=True)
+    product_id = Column(Integer, ForeignKey("shoes.id", ondelete="SET NULL"), nullable=True)
