@@ -125,6 +125,15 @@ async def update_order_status_by_id(id:int,order_status:schemas_order.status_upd
 
     try:
         if should_decrement_on_status and not getattr(order, 'stock_decremented', False):
+            # Validar stock actual antes de decrementar (fulfillment)
+            shoes_row = db.query(product_models.Shoes).filter(product_models.Shoes.id == order.product_id).first()
+            if not shoes_row:
+                raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Product {order.product_id} not found")
+            current_stock = int(shoes_row.shoes_stock or 0)
+            if current_stock < order.product_quantity:
+                # No hay stock suficiente para enviar la orden
+                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Insufficient stock to ship order {id}: available={current_stock} required={order.product_quantity}")
+
             # Decrementar stock sólo si no se ha hecho antes para esta orden (idempotente)
             db.query(product_models.Shoes).filter(product_models.Shoes.id==order.product_id).update({
                 "shoes_stock": product_models.Shoes.shoes_stock - order.product_quantity

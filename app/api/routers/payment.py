@@ -349,11 +349,8 @@ async def stripe_webhook(request: Request, db: Session = Depends(get_db)):
                                 db.add(new_order)
                                 logger.info(f"✅ Orden creada (Stripe price) para product_id={product_id} qty={qty} paid={paid_total}cents")
 
-                                # Actualizar el stock con una operación UPDATE (decrementar)
-                                db.query(product_models.Shoes).filter(product_models.Shoes.id == product_id).update({
-                                    "shoes_stock": product_models.Shoes.shoes_stock - qty
-                                }, synchronize_session=False)
-                                logger.info(f"📦 Stock programado para decremento product_id={product_id} by {qty}")
+                                # Nota: el decremento de stock se difiere hasta el flujo de fulfillment
+                                # (se validará y decrementará al marcar la orden como 'shipped' en order.py)
 
                             # Eliminar todos los items del carrito del usuario en una sola operación
                             deleted = db.query(models_cart.Cart).filter(models_cart.Cart.owner_id == user_id).delete(synchronize_session=False)
