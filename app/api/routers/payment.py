@@ -108,6 +108,10 @@ async def create_checkout_session(
                     'product_data': {
                         'name': product.name,
                         'images': [product.product_image] if product.product_image else [],
+                        # Guardamos el product_id en metadata para poder mapearlo desde el webhook
+                        'metadata': {
+                            'product_id': str(product.id)
+                        }
                     },
                     'unit_amount': int(product.price * 100),  # Stripe necesita el precio en centavos
                 },
@@ -181,7 +185,8 @@ async def create_checkout_session(
             detail=str(e)
         )
 
-@router.post("/webhook")  # Cambiada la ruta a /webhook para simplicidad
+@router.post("/api/webhooks/stripe")
+#@router.post("/webhook")  # Cambiada la ruta a /webhook para simplicidad
 async def stripe_webhook(request: Request, db: Session = Depends(get_db)):
     logger.info("=== Webhook de Stripe recibido ===")
     # Obtener el payload raw para verificar la firma
@@ -239,61 +244,123 @@ async def stripe_webhook(request: Request, db: Session = Depends(get_db)):
                 for it in cart_items:
                     logger.info(f"   - cart item product_id={it.product_id} name={it.product_name} qty={it.product_quantity} price={it.price}")
 
-                # Procesar la creación de órdenes y actualización de stock en una transacción
-                try:
-                    # Si la sesión ya tiene una transacción activa, usamos begin_nested()
-                    # para crear un SAVEPOINT y evitar el error de "A transaction is already begun"
-                    if getattr(db, 'in_transaction', None) and db.in_transaction():
-                        tx = db.begin_nested()
-                    else:
-                        tx = db.begin()
-                    with tx:
-                        # Recuperar payment_intent del checkout session expandido si existe
-                        payment_intent_id = None
-                        try:
-                            payment_intent_id = checkout_session.payment_intent
-                        except Exception:
+                    # Procesar la creación de órdenes y actualización de stock en una transacción
+                    try:
+                        # Idempotencia: si ya existe una orden asociada a esta sesión, no procesar de nuevo
+                        existing = db.query(models_orders.Orders).filter(models_orders.Orders.stripe_session_id == checkout_session.id).first()
+                        if existing:
+                            logger.info(f"♻️ Webhook idempotente: sesión {checkout_session.id} ya procesada. Skipping.")
+                            return {"status": "already_processed"}
+
+                        # Obtener los line_items reales desde Stripe (contienen cantidad y precio unitario)
+                        line_items_resp = stripe.checkout.Session.list_line_items(checkout_session.id, limit=100)
+
+                        # Si la sesión ya tiene una transacción activa, usamos begin_nested()
+                        # para crear un SAVEPOINT y evitar el error de "A transaction is already begun"
+                        if getattr(db, 'in_transaction', None) and db.in_transaction():
+                            tx = db.begin_nested()
+                        else:
+                            tx = db.begin()
+                        with tx:
+                            # Recuperar payment_intent del checkout session si existe
+                            # Extraer siempre el ID del payment_intent (puede venir como objeto expandido o como string)
+                            payment_intent_id = None
                             try:
-                                payment_intent_id = checkout_session.get('payment_intent')
+                                pi_raw = checkout_session.payment_intent
                             except Exception:
+                                try:
+                                    pi_raw = checkout_session.get('payment_intent') if isinstance(checkout_session, dict) else None
+                                except Exception:
+                                    pi_raw = None
+
+                            # Normalizar a string id
+                            if pi_raw is None:
                                 payment_intent_id = None
+                            else:
+                                # si es objeto Stripe (PaymentIntent), extraer .id
+                                if hasattr(pi_raw, 'id'):
+                                    payment_intent_id = pi_raw.id
+                                elif isinstance(pi_raw, dict) and pi_raw.get('id'):
+                                    payment_intent_id = pi_raw.get('id')
+                                else:
+                                    # fallback a string
+                                    payment_intent_id = str(pi_raw)
 
-                        for item in cart_items:
-                            new_order = models_orders.Orders(
-                                product_id=item.product_id,
-                                owner_id=user_id,
-                                owner_name=user.user_name,
-                                owner_email=item.owner_email,
-                                user_address=user.user_address,
-                                product_name=item.product_name,
-                                product_quantity=item.product_quantity,
-                                price=item.price,
-                                product_image=item.product_image,
-                                size=item.size,
-                                shoes_category=item.shoes_category,
-                                order_status="confirmed",
-                                payment="stripe",
-                                shipping_method="standard"
-                            )
-                            db.add(new_order)
-                            logger.info(f"✅ Orden creada para {item.product_name}")
+                            logger.info(f"🔎 payment_intent_id resuelto: {payment_intent_id}")
 
-                            # Actualizar el stock con una operación UPDATE
-                            db.query(product_models.Shoes).filter(product_models.Shoes.id == item.product_id).update({
-                                "shoes_stock": product_models.Shoes.shoes_stock - item.product_quantity
-                            }, synchronize_session=False)
-                            logger.info(f"📦 Stock programado para decremento product_id={item.product_id} by {item.product_quantity}")
+                            # Iterar sobre los line_items reportados por Stripe y crear órdenes basadas en los precios cobrados
+                            for li in line_items_resp.data:
+                                # Obtener precio unitario en centavos y cantidad
+                                unit_amount = getattr(li.price, 'unit_amount', None) or li.price.get('unit_amount')
+                                qty = li.quantity
 
-                        # Eliminar todos los items del carrito del usuario en una sola operación
-                        deleted = db.query(models_cart.Cart).filter(models_cart.Cart.owner_id == user_id).delete(synchronize_session=False)
-                        logger.info(f"🗑️  Carrito limpiado, rows deleted: {deleted}")
+                                # Intentar obtener product_id que guardamos en product metadata cuando creamos la sesión
+                                product_id = None
+                                try:
+                                    stripe_product_id = getattr(li.price, 'product', None) or li.price.get('product')
+                                    if stripe_product_id:
+                                        stripe_product = stripe.Product.retrieve(str(stripe_product_id))
+                                        prod_meta = stripe_product.metadata or {}
+                                        if prod_meta.get('product_id'):
+                                            product_id = int(prod_meta.get('product_id'))
+                                except Exception as e:
+                                    logger.warning(f"No se pudo leer metadata del producto en Stripe: {e}")
 
-                    # Al salir del context la transacción se comitea automáticamente si no hubo excepciones
-                    logger.info("✅ Transaction committed: orders created and cart cleared")
-                except Exception as te:
-                    # Si ocurre cualquier error dentro de la transacción, se hace rollback automáticamente al salir del context
-                    logger.error(f"❌ Error durante transacción de ordenes: {te}")
-                    raise
+                                # Fallback: intentar mapear por nombre/qty desde cart_items
+                                if product_id is None:
+                                    matched = None
+                                    for c in cart_items:
+                                        if c.product_quantity == qty and not matched:
+                                            matched = c
+                                    if matched:
+                                        product_id = matched.product_id
+
+                                if product_id is None:
+                                    logger.error(f"❌ No se pudo determinar product_id para line_item: {li}")
+                                    raise Exception("No se pudo mapear line_item a product_id")
+
+                                # Crear la orden usando el precio tomado de Stripe (unit_amount en centavos)
+                                paid_total = (unit_amount or 0) * (qty or 1)
+                                unit_price_dollars = int((unit_amount or 0) / 100)
+
+                                new_order = models_orders.Orders(
+                                    product_id=product_id,
+                                    owner_id=user_id,
+                                    owner_name=user.user_name,
+                                    owner_email=user.email if user and hasattr(user, 'email') else '',
+                                    user_address=user.user_address if user and hasattr(user, 'user_address') else '',
+                                    product_name=getattr(li, 'description', f'Product {product_id}'),
+                                    product_quantity=qty,
+                                    price=unit_price_dollars,
+                                    paid_amount=paid_total,
+                                    product_image="",
+                                    size=0,
+                                    shoes_category="",
+                                    order_status="paid",
+                                    payment="stripe",
+                                    shipping_method="standard",
+                                    stripe_session_id=checkout_session.id,
+                                    payment_intent_id=payment_intent_id
+                                )
+                                db.add(new_order)
+                                logger.info(f"✅ Orden creada (Stripe price) para product_id={product_id} qty={qty} paid={paid_total}cents")
+
+                                # Actualizar el stock con una operación UPDATE (decrementar)
+                                db.query(product_models.Shoes).filter(product_models.Shoes.id == product_id).update({
+                                    "shoes_stock": product_models.Shoes.shoes_stock - qty
+                                }, synchronize_session=False)
+                                logger.info(f"📦 Stock programado para decremento product_id={product_id} by {qty}")
+
+                            # Eliminar todos los items del carrito del usuario en una sola operación
+                            deleted = db.query(models_cart.Cart).filter(models_cart.Cart.owner_id == user_id).delete(synchronize_session=False)
+                            logger.info(f"🗑️  Carrito limpiado, rows deleted: {deleted}")
+
+                        # Al salir del context la transacción se comitea automáticamente si no hubo excepciones
+                        logger.info("✅ Transaction committed: orders created and cart cleared")
+                    except Exception as te:
+                        # Si ocurre cualquier error dentro de la transacción, se hace rollback automáticamente al salir del context
+                        logger.error(f"❌ Error durante transacción de ordenes: {te}")
+                        raise
 
             except Exception as e:
                 # Si algo falló, aseguramos rollback de la sesión inyectada

@@ -75,17 +75,16 @@ async def create_order(order:schemas_order.OrderAdd,db: Session = Depends(get_db
                 setattr(order_item, column.name, getattr(cart_item, column.name))
         
         # Manually set additional attributes for the order item
-         # Set the order ID for the order item
-        shoes_stock=db.query(product_models.Shoes).filter(product_models.Shoes.id==cart_item.product_id).first().shoes_stock
-        if shoes_stock>=cart_item.product_quantity:
-            db.query(product_models.Shoes).filter(product_models.Shoes.id==cart_item.product_id).update({"shoes_stock":shoes_stock-cart_item.product_quantity},synchronize_session=False)
-        
+        # NOTE: No decrementar stock aquí — se hará cuando el admin marque la orden como 'shipped'
         order_item.user_address = order.user_address
         order_item.payment = order.payment 
         order_item.shipping_method = order.shipping_method
         order_item.owner_id=id
         order_item.owner_name=user_email.user_name
         order_item.owner_email = user_email.email   # Set additional attribute
+        # Estado inicial: pendiente de fulfillment (no hemos decrementado stock aún)
+        order_item.order_status = "pending"
+        order_item.stock_decremented = False
         
         db.add(order_item)
     db.query(models_cart.Cart).filter(models_cart.Cart.owner_id==id).delete(synchronize_session=False)
@@ -118,8 +117,30 @@ async def update_order_status_by_id(id:int,order_status:schemas_order.status_upd
     order=order_query.first()
     if order==None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,detail=f"post with id:{id} not found")
-    order_query.update(order_status.dict(),synchronize_session=False)
-    db.commit()
+    # Obtener el nuevo estado que se quiere aplicar
+    new_status = order_status.order_status
+
+    # Si el nuevo estado es uno que implica envío/finalización, decrementamos stock
+    should_decrement_on_status = new_status.lower() in ["shipped", "enviado", "sent"]
+
+    try:
+        if should_decrement_on_status and not getattr(order, 'stock_decremented', False):
+            # Decrementar stock sólo si no se ha hecho antes para esta orden (idempotente)
+            db.query(product_models.Shoes).filter(product_models.Shoes.id==order.product_id).update({
+                "shoes_stock": product_models.Shoes.shoes_stock - order.product_quantity
+            }, synchronize_session=False)
+            # Marcar que el stock fue decrementado
+            update_payload = order_status.dict()
+            update_payload.update({"stock_decremented": True})
+            order_query.update(update_payload, synchronize_session=False)
+        else:
+            # Simplemente actualizar el estado
+            order_query.update(order_status.dict(),synchronize_session=False)
+
+        db.commit()
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
     if str(origin)=="http://localhost:3000":
         # Iterate over connected WebSocket clients and send a message
         await client_signal()

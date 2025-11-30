@@ -23,3 +23,10 @@ class Orders(Base):
     payment = Column(String, nullable=False)
     shipping_method = Column(String, nullable=False, server_default=text("'processing'"))
     ordered_at = Column(TIMESTAMP(timezone=True), nullable=False, server_default=text('CURRENT_TIMESTAMP'))
+    # Stripe integration fields
+    stripe_session_id = Column(String, nullable=True, unique=False)
+    payment_intent_id = Column(String, nullable=True)
+    # paid_amount in cents (integer) to record the amount actually charged by Stripe per order line
+    paid_amount = Column(Integer, nullable=True)
+    # Indica si el stock ya fue decrementado para esta orden (evitar doble decremento)
+    stock_decremented = Column(Boolean, nullable=False, server_default=text('0'))
