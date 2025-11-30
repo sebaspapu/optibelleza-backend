@@ -188,6 +188,8 @@ async def create_checkout_session(
 @router.post("/api/webhooks/stripe")
 #@router.post("/webhook")  # Cambiada la ruta a /webhook para simplicidad
 async def stripe_webhook(request: Request, db: Session = Depends(get_db)):
+    # HU: checkout.session.completed -> see handling below
+    # A: event handling, B: extract details, C: persist orders
     logger.info("=== Webhook de Stripe recibido ===")
     # Obtener el payload raw para verificar la firma
     payload = await request.body()
@@ -199,15 +201,16 @@ async def stripe_webhook(request: Request, db: Session = Depends(get_db)):
         raise HTTPException(status_code=400, detail="No Stripe signature found")
     
     try:
-        # Construir el evento
+        # Verify Stripe signature and construct event
         event = stripe.Webhook.construct_event(
             payload, sig_header, settings.stripe_webhook_secret
         )
         logger.info(f"✅ Firma verificada correctamente")
         logger.info(f"📝 Tipo de evento: {event['type']}")
         
-        # Manejar el evento de pago completado
+        # Handle checkout.session.completed
         if event['type'] == 'checkout.session.completed':
+            # session object from Stripe
             session = event['data']['object']
 
             # Usar la sesión `db` inyectada por Depends; no crear una nueva
@@ -215,7 +218,7 @@ async def stripe_webhook(request: Request, db: Session = Depends(get_db)):
             try:
                 logger.info("=== Verificando sesión de pago ===")
 
-                # Obtener la sesión completa de Stripe para tener todos los detalles
+                # Retrieve session and details (metadata, payment_intent, line_items)
                 checkout_session = stripe.checkout.Session.retrieve(
                     session.id,
                     expand=['payment_intent', 'line_items']
@@ -288,7 +291,8 @@ async def stripe_webhook(request: Request, db: Session = Depends(get_db)):
 
                             logger.info(f"🔎 payment_intent_id resuelto: {payment_intent_id}")
 
-                            # Iterar sobre los line_items reportados por Stripe y crear órdenes basadas en los precios cobrados
+                            # Persist order lines in DB (create Orders)
+                            # Note: currently creates one DB row per line_item
                             for li in line_items_resp.data:
                                 # Obtener precio unitario en centavos y cantidad
                                 unit_amount = getattr(li.price, 'unit_amount', None) or li.price.get('unit_amount')
