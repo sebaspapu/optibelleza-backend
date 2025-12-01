@@ -1,5 +1,5 @@
 import requests
-from core.config import settings
+from app.core.config import settings
 import logging
 
 logger = logging.getLogger("uvicorn.error")

@@ -1,14 +1,14 @@
 from fastapi import FastAPI,Depends,HTTPException,APIRouter,status,UploadFile,File,Header,Query
 from sqlalchemy.orm import Session
-from db.session import get_db
-import models.product as product_models
-import models.cart as cart_models
-import core.oauth2 as oauth2
-import schemas.product as schemas
-from core.config import settings
+from app.db.session import get_db
+from app.models import product as product_models
+from app.models import cart as cart_models
+from app.core import oauth2
+from app.schemas import product as schemas
+from app.core.config import settings
 from typing import List, Optional
 import base64
-from infra.websocket import websocket_connections,websocket_connections_admin
+from app.infra.websocket import websocket_connections,websocket_connections_admin
 import stripe
 
 # Configurar Stripe

@@ -1,24 +1,24 @@
 from fastapi import FastAPI,Depends,HTTPException
 from fastapi.params import Body
 
-from db.session import engine, SessionLocal
+from app.db.session import engine, SessionLocal
 
-import models.user as models
-import schemas.user as schemas
+from app.models import user as models
+from app.schemas import user as schemas
 import socketio as socketio
 
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 
 # Routers
-from api.routers import auth
-from api.routers import products
-from api.routers import cart
-from api.routers import order
-from api.routers import payment
+from app.api.routers import auth
+from app.api.routers import products
+from app.api.routers import cart
+from app.api.routers import order
+from app.api.routers import payment
 
 # Middleware setup
-from middlewares.cors import setup_cors
+from app.middlewares.cors import setup_cors
 
 models.Base.metadata.create_all(bind=engine)
 

@@ -1,24 +1,24 @@
 from fastapi import FastAPI,Depends,HTTPException,APIRouter,status,Header
 from sqlalchemy.orm import Session
-from db.session import get_db
+from app.db.session import get_db
 
 #modelos
-import models.orders as models_orders
-import models.product as product_models
-import models.user as models_user
-import models.cart as models_cart
+from app.models import orders as models_orders
+from app.models import product as product_models
+from app.models import user as models_user
+from app.models import cart as models_cart
 
 #schemas
-import schemas.order as schemas_order
-import schemas.product as schemas_product
-import schemas.user as schemas_user
-import schemas.cart as schemas_cart
+from app.schemas import order as schemas_order
+from app.schemas import product as schemas_product
+from app.schemas import user as schemas_user
+from app.schemas import cart as schemas_cart
 
 
-import core.oauth2 as oauth2
-from infra.websocket import websocket_connections,websocket_connections_admin
-from core.config import settings
-from infra.email import send_order_notification
+from app.core import oauth2
+from app.infra.websocket import websocket_connections, websocket_connections_admin
+from app.core.config import settings
+from app.infra.email import send_order_notification
 
 router=APIRouter()
 

@@ -1,21 +1,21 @@
 from fastapi import FastAPI,Depends,HTTPException,APIRouter,status,Header
 from sqlalchemy.orm import Session
-from db.session import get_db
-import models.user as models
-import models.admin as models_admin
-import core.security as utils
-import core.oauth2 as oauth2
+from app.db.session import get_db
+from app.models import user as models
+from app.models import admin as models_admin
+from app.core import security as utils
+from app.core import oauth2
 from sqlalchemy.exc import IntegrityError
-from core.security import pwd_context
+from app.core.security import pwd_context
 from typing import List
-import schemas.user as schemas
-import schemas.admin as schemas_admin
+from app.schemas import user as schemas
+from app.schemas import admin as schemas_admin
 
 from passlib.context import CryptContext
 from passlib.exc import UnknownHashError
 
 
-from infra.websocket import websocket_connections,websocket_connections_admin
+from app.infra.websocket import websocket_connections,websocket_connections_admin
 import websockets
 
 user_dict={}

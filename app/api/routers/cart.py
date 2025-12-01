@@ -1,20 +1,20 @@
 from fastapi import FastAPI,Depends,HTTPException,APIRouter,status,Header
 from sqlalchemy.orm import Session
-from db.session import get_db
+from app.db.session import get_db
 
 #modelos
-import models.product as product_models
-import models.user as models
-import models.cart as models_cart
+from app.models import product as product_models
+from app.models import user as models
+from app.models import cart as models_cart
 
 #schemas
-import schemas.cart as cart
-import schemas.user as schemas
-import schemas.product as schemas_product
+from app.schemas import cart
+from app.schemas import user as schemas
+from app.schemas import product as schemas_product
 
-import core.oauth2 as oauth2
+from app.core import oauth2
 from sqlalchemy.exc import IntegrityError
-from infra.websocket import websocket_connections,websocket_connections_admin
+from app.infra.websocket import websocket_connections,websocket_connections_admin
 from typing import List, Optional,Union
 
 router=APIRouter()
