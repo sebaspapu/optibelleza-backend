@@ -5,14 +5,19 @@ from app.core.config import settings
 import os
 
 # Support Postgres (production) and a local SQLite fallback for demos/tests.
-if settings.database_hostname == "sqlite":
-    # Use a local file-based sqlite database. Path comes from settings.database_name.
+# Use APP_ENV to decide: non-production -> sqlite, production -> postgres.
+if settings.app_env.lower() not in ("production", "prod"):
+    # Development / local: use a local file-based sqlite database.
     db_path = settings.database_name or "./test2.db"
     SQLALCHEMY_DATABASE_URL = f"sqlite:///{os.path.abspath(db_path)}"
     # For SQLite, need check_same_thread=False when using with multiple threads.
     engine = create_engine(SQLALCHEMY_DATABASE_URL, connect_args={"check_same_thread": False})
 else:
-    SQLALCHEMY_DATABASE_URL = f"postgresql+psycopg2://{settings.database_username}:{settings.database_password}@{settings.database_hostname}:{settings.database_port}/{settings.database_name}"
+    # Production: use Postgres (credentials come from settings / .env)
+    SQLALCHEMY_DATABASE_URL = (
+        f"postgresql+psycopg2://{settings.database_username}:{settings.database_password}"
+        f"@{settings.database_hostname}:{settings.database_port}/{settings.database_name}"
+    )
     engine = create_engine(SQLALCHEMY_DATABASE_URL, pool_size=10, max_overflow=20)
 
 

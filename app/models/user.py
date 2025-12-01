@@ -11,8 +11,9 @@ class User(Base):
     email = Column(String, nullable=False, unique=True)
     password = Column(String, nullable=False)
     created_at = Column(TIMESTAMP(timezone=True), nullable=False, server_default=text('CURRENT_TIMESTAMP'))
-    login_status = Column(Boolean, nullable=False, server_default=text('0'))
-    online_status = Column(Boolean, nullable=False, server_default=text('0'))
+    # Use SQL boolean literals for server_default so Postgres accepts them
+    login_status = Column(Boolean, nullable=False, server_default=text('false'))
+    online_status = Column(Boolean, nullable=False, server_default=text('false'))
     total_quantity = Column(Integer, nullable=False, server_default=text('0'))
     total_purchase = Column(Integer, nullable=False, server_default=text('0'))
     user_address = Column(String, nullable=False, server_default=text("'None'"))  # Added single quotes around 'None'
