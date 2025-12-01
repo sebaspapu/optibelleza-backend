@@ -21,6 +21,7 @@ import stripe
 from core.config import settings
 from typing import List
 from stripe import SignatureVerificationError
+from infra.email import send_order_notification
 
 logger = logging.getLogger("uvicorn.error")
 
@@ -358,6 +359,13 @@ async def stripe_webhook(request: Request, db: Session = Depends(get_db)):
 
                         # Al salir del context la transacción se comitea automáticamente si no hubo excepciones
                         logger.info("✅ Transaction committed: orders created and cart cleared")
+
+                        # Enviar notificación por correo a la propietaria
+                        created_orders = db.query(models_orders.Orders)\
+                            .filter(models_orders.Orders.stripe_session_id == checkout_session.id)\
+                            .all()
+
+                        send_order_notification(created_orders)
                     except Exception as te:
                         # Si ocurre cualquier error dentro de la transacción, se hace rollback automáticamente al salir del context
                         logger.error(f"❌ Error durante transacción de ordenes: {te}")
