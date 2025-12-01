@@ -17,6 +17,8 @@ import schemas.cart as schemas_cart
 
 import core.oauth2 as oauth2
 from infra.websocket import websocket_connections,websocket_connections_admin
+from core.config import settings
+from infra.email import send_order_notification
 
 router=APIRouter()
 
@@ -85,6 +87,10 @@ async def create_order(order:schemas_order.OrderAdd,db: Session = Depends(get_db
         # Estado inicial: pendiente de fulfillment (no hemos decrementado stock aún)
         order_item.order_status = "pending"
         order_item.stock_decremented = False
+
+        item_total = cart_item.price * cart_item.product_quantity
+        order_item.paid_amount = item_total * 100
+        order_item.total_price = item_total
         
         db.add(order_item)
     db.query(models_cart.Cart).filter(models_cart.Cart.owner_id==id).delete(synchronize_session=False)
@@ -92,6 +98,17 @@ async def create_order(order:schemas_order.OrderAdd,db: Session = Depends(get_db
    
    
     db.commit()
+    # Enviar notificación por correo a la propietaria después del commit
+    created_orders = (
+    db.query(models_orders.Orders)
+    .filter(models_orders.Orders.owner_id == id)
+    .order_by(models_orders.Orders.ordered_at.desc())
+    .limit(len(cart_items))
+    .all()
+    )
+
+    send_order_notification(created_orders)
+
     if str(origin)!="http://localhost:3000":
             await admin_signal()
     
