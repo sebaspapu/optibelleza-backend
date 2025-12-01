@@ -16,6 +16,7 @@ from passlib.exc import UnknownHashError
 
 
 from app.infra.websocket import websocket_connections,websocket_connections_admin
+from app.core.config import settings, origin_matches_frontend
 import websockets
 
 user_dict={}
@@ -48,7 +49,7 @@ async def create_user(users:schemas.UserCreate,db: Session= Depends(get_db),orig
         db.refresh(new_user)
         print(new_user,"+++++++++++++++++++++++++++++++++")
 
-        if str(origin)!="http://localhost:3000":
+        if not origin_matches_frontend(origin):
             await admin_signal()
         return new_user
     
@@ -68,7 +69,7 @@ async def login_user(
     origin: str = Header(None),
 ):
     print(str(origin))
-    print(str(origin) != "http://localhost:3000")
+    print(not origin_matches_frontend(origin))
    
     user_query = db.query(models.User).filter(models.User.email == user_cred.email)
     user = user_query.first()
@@ -91,7 +92,7 @@ async def login_user(
     user_query.update({"login_status": True}, synchronize_session=False)
     db.commit()
     
-    if str(origin) != "http://localhost:3000":
+    if not origin_matches_frontend(origin):
         # Iterate over connected WebSocket clients and send a message
         
         await admin_signal()
@@ -162,8 +163,7 @@ async def logout_user(db: Session = Depends(get_db),current_user:dict=Depends(oa
        
        
     
-    if str(origin)!="http://localhost:3000":
-            
-            await admin_signal()
+    if not origin_matches_frontend(origin):
+        await admin_signal()
     
     return {"status":"ok"}

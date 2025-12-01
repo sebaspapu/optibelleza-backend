@@ -17,6 +17,8 @@ from sqlalchemy.exc import IntegrityError
 from app.infra.websocket import websocket_connections,websocket_connections_admin
 from typing import List, Optional,Union
 
+from app.core.config import settings, origin_matches_frontend
+
 router=APIRouter()
 async def admin_signal():
        for client in websocket_connections_admin:
@@ -68,7 +70,8 @@ async def add_item_cart(shoes_id:cart.CartAdd,db: Session = Depends(get_db),curr
                         db.add(new_item)
                         db.commit()
                         db.refresh(new_item)
-                        if str(origin)=="http://localhost:3001":
+                        #if str(origin)=="http://localhost:3001":
+                        if origin_matches_frontend(origin):
                                 # Iterate over connected WebSocket clients and send a message
                                 await client_signal()
                         return new_item
@@ -106,7 +109,8 @@ async def increase_item_cart(cart_increase:cart.CartIncresase,db: Session = Depe
 
         cart_all.update({"product_quantity":cart_value+1},synchronize_session=False)
         db.commit()
-        if str(origin)=="http://localhost:3001":
+        #if str(origin)=="http://localhost:3001":
+        if origin_matches_frontend(origin):
          # Iterate over connected WebSocket clients and send a message
          await client_signal()
         return {"status":"ok"}
@@ -124,14 +128,16 @@ async def decrease_item_cart(cart_increase:cart.CartIncresase,db: Session = Depe
         if cart_value <= 1:
             cart_all.delete(synchronize_session=False)
             db.commit()
-            if str(origin)=="http://localhost:3001":
+            #if str(origin)=="http://localhost:3001":
+            if origin_matches_frontend(origin):
                 # Notify frontend
                 await client_signal()
             return {"status":"deleted"}
 
         cart_all.update({"product_quantity":cart_value-1},synchronize_session=False)
         db.commit()
-        if str(origin)=="http://localhost:3001":
+        #if str(origin)=="http://localhost:3001":
+        if origin_matches_frontend(origin):
             # Iterate over connected WebSocket clients and send a message
             await client_signal()
         return {"status":"ok"}
@@ -146,7 +152,8 @@ async def delete_item_cart(name:str,db: Session = Depends(get_db),current_user:i
            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,detail=f"cart item with name:{name} not found")
         cart_all.delete(synchronize_session=False)
         db.commit()
-        if str(origin)=="http://localhost:3001":
+        #if str(origin)=="http://localhost:3001":
+        if origin_matches_frontend(origin):
          # Iterate over connected WebSocket clients and send a message
          await client_signal()
         return {"message":"deleted"}
@@ -162,7 +169,8 @@ async def update_size_mount_in_cart(size:schemas_product.ProductSize,db: Session
           raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,detail=f"post with id:{id} not found")
        cart_all.update({"size":size.size},synchronize_session=False)
        db.commit()
-       if str(origin)=="http://localhost:3001":
+       #if str(origin)=="http://localhost:3001":
+       if origin_matches_frontend(origin):
          # Iterate over connected WebSocket clients and send a message
          await client_signal()
        return {"message":"size set"}

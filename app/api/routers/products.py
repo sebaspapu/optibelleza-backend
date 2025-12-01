@@ -5,7 +5,7 @@ from app.models import product as product_models
 from app.models import cart as cart_models
 from app.core import oauth2
 from app.schemas import product as schemas
-from app.core.config import settings
+from app.core.config import settings, origin_matches_frontend
 from typing import List, Optional
 import base64
 from app.infra.websocket import websocket_connections,websocket_connections_admin
@@ -15,16 +15,24 @@ import stripe
 stripe.api_key = settings.stripe_secret_key
 
 import boto3
-AWS_ACCESS_KEY = "AKIAVRUVPPBZ74UNU3OZ"  # Replace with the actual Access Key ID
-  # Replace with the actual Secret Access Key
-AWS_REGION = "ap-south-1"
-S3_BUCKET_NAME = "abhishek-jain-786"
 
-# Create an S3 client
-s3 = boto3.client('s3', aws_access_key_id=AWS_ACCESS_KEY, aws_secret_access_key=settings.aws_secret_key, region_name=AWS_REGION)
+# Read AWS / S3 settings from config (values come from .env via Settings)
+AWS_ACCESS_KEY = settings.aws_access_key_id
+AWS_REGION = settings.aws_region or "ap-south-1"
+S3_BUCKET_NAME = settings.s3_bucket_name
+
+# Create an S3 client using settings values
+s3 = boto3.client(
+        's3',
+        aws_access_key_id=AWS_ACCESS_KEY or None,
+        aws_secret_access_key=settings.aws_secret_key or None,
+        region_name=AWS_REGION or None,
+)
 
 router=APIRouter()
-s3_bucket_name="abhishek-jain-786"
+s3_bucket_name = S3_BUCKET_NAME or ""
+
+# Use `origin_matches_frontend` from `app.core.config` to compare Origin header
 async def client_signal():
        for client in websocket_connections:
                             try:
@@ -143,7 +151,7 @@ async def create_product_mounts(shoes:schemas.ShoesCreate,db: Session = Depends(
         db.commit()
         db.refresh(new_shoes)
 
-        if str(origin) == "http://localhost:3000":
+        if origin_matches_frontend(origin):
             await client_signal()
 
         return new_shoes
@@ -204,7 +212,7 @@ async def update_product_mount_by_id(id:int,post:schemas.ShoesUpdate,db: Session
         shoes_query.update(post.dict(),synchronize_session=False)
         db.commit()
         
-        if str(origin)=="http://localhost:3000":
+        if origin_matches_frontend(origin):
             await client_signal()
         
         return {"data":"success"}
@@ -233,8 +241,7 @@ async def delete_product_mount_by_id(id:int,db: Session = Depends(get_db),curren
     product_query.delete(synchronize_session=False)
     db.commit()
 
-    if str(origin)=="http://localhost:3000":
+    if origin_matches_frontend(origin):
         # Iterate over connected WebSocket clients and send a message
-        
         await client_signal()
     return {"message":"Producto eliminado exitosamente"}

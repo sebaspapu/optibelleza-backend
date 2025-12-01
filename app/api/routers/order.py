@@ -17,7 +17,7 @@ from app.schemas import cart as schemas_cart
 
 from app.core import oauth2
 from app.infra.websocket import websocket_connections, websocket_connections_admin
-from app.core.config import settings
+from app.core.config import settings, origin_matches_frontend
 from app.infra.email import send_order_notification
 
 router=APIRouter()
@@ -109,10 +109,9 @@ async def create_order(order:schemas_order.OrderAdd,db: Session = Depends(get_db
 
     send_order_notification(created_orders)
 
-    if str(origin)!="http://localhost:3000":
-            await admin_signal()
-    
-    
+    if not origin_matches_frontend(origin):
+        await admin_signal()
+
     return order_item
 
 # eliminar una orden
@@ -167,7 +166,7 @@ async def update_order_status_by_id(id:int,order_status:schemas_order.status_upd
     except Exception as e:
         db.rollback()
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
-    if str(origin)=="http://localhost:3000":
+    if origin_matches_frontend(origin):
         # Iterate over connected WebSocket clients and send a message
         await client_signal()
     return {"data":"sucess"}

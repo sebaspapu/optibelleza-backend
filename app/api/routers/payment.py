@@ -18,7 +18,7 @@ from app.schemas import cart as schemas_cart
 
 from app.core import oauth2
 import stripe
-from app.core.config import settings
+from app.core.config import settings, origin_matches_frontend
 from typing import List
 from stripe import SignatureVerificationError
 from app.infra.email import send_order_notification
@@ -34,7 +34,7 @@ logger.info(f"🔐 Stripe API key configurada: {stripe.api_key[:8]}********")
 
 
 # URL base para redirecciones después del pago
-YOUR_DOMAIN = "http://localhost:3000"  # Cambiado a 3001 para coincidir con tu frontend
+YOUR_DOMAIN = settings.frontend_base_url or "http://localhost:3000"
 
 @router.post("/api/checkout/create-session")
 async def create_checkout_session(
