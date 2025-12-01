@@ -1,17 +1,17 @@
 import jwt
 from datetime import datetime,timedelta
-from db.session import get_db
+from app.db.session import get_db
 from fastapi import Depends, status, HTTPException, Request
 from fastapi.security import OAuth2PasswordBearer, HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
-from db.session import get_db
-import schemas.user as schemas
-import models.user as models
+from app.db.session import get_db
+from app.schemas import user as schemas
+from app.models import user as models
 
 from typing import Dict,Any
 
 from sqlalchemy import select
-from core.config import settings
+from app.core.config import settings
 #oauth2_scheme= OAuth2PasswordBearer(tokenUrl='login_admin')
 oauth2_scheme = HTTPBearer(auto_error=True)
 

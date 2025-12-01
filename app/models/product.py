@@ -1,4 +1,4 @@
-from db.session import Base
+from app.db.session import Base
 from sqlalchemy import Column, Integer, String, Boolean,ForeignKey,Text,LargeBinary
 from sqlalchemy.sql.sqltypes import TIMESTAMP
 from sqlalchemy import text
@@ -12,7 +12,7 @@ class Shoes(Base):
     shoes_type=Column(String,nullable=False)
     product_image=Column(String,nullable=False)
     shoes_category=Column(String,nullable=False)
-    shoes_stock=Column(Integer,server_default=text('0'))
+    shoes_stock=Column(Integer,server_default="0")
     shoes_description=Column(String,server_default=text("''"))
     created_at=Column(TIMESTAMP(timezone=True),nullable=False,server_default=text('CURRENT_TIMESTAMP'))
     stripe_product_id = Column(String, nullable=True)

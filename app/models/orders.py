@@ -1,4 +1,4 @@
-from db.session import Base
+from app.db.session import Base
 from sqlalchemy import Column, Integer, String, Boolean,ForeignKey,Text,LargeBinary
 from sqlalchemy.sql.sqltypes import TIMESTAMP
 from sqlalchemy import text
@@ -29,4 +29,6 @@ class Orders(Base):
     # paid_amount in cents (integer) to record the amount actually charged by Stripe per order line
     paid_amount = Column(Integer, nullable=True)
     # Indica si el stock ya fue decrementado para esta orden (evitar doble decremento)
-    stock_decremented = Column(Boolean, nullable=False, server_default=text('0'))
+    # Use boolean literal for server_default so Postgres accepts it, and default
+    # at ORM level to ensure sensible Python-side defaults.
+    stock_decremented = Column(Boolean, nullable=False, default=False, server_default=text('false'))
