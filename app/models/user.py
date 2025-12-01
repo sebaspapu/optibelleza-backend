@@ -14,8 +14,8 @@ class User(Base):
     # Use SQL boolean literals for server_default so Postgres accepts them
     login_status = Column(Boolean, nullable=False, server_default=text('false'))
     online_status = Column(Boolean, nullable=False, server_default=text('false'))
-    total_quantity = Column(Integer, nullable=False, server_default=text('false'))
-    total_purchase = Column(Integer, nullable=False, server_default=text('false'))
+    total_quantity = Column(Integer, nullable=False, server_default="0")
+    total_purchase = Column(Integer, nullable=False, server_default="0")
     user_address = Column(String, nullable=False, server_default=text("'None'"))  # Added single quotes around 'None'
     user_phone_no = Column(String, nullable=False, server_default=text("''"))  # Set default to empty string
     payment_status = Column(String, nullable=False, server_default=text("'pending'"))

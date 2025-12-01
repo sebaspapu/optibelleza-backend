@@ -12,7 +12,7 @@ class Shoes(Base):
     shoes_type=Column(String,nullable=False)
     product_image=Column(String,nullable=False)
     shoes_category=Column(String,nullable=False)
-    shoes_stock=Column(Integer,server_default=text('false'))
+    shoes_stock=Column(Integer,server_default="0")
     shoes_description=Column(String,server_default=text("''"))
     created_at=Column(TIMESTAMP(timezone=True),nullable=False,server_default=text('CURRENT_TIMESTAMP'))
     stripe_product_id = Column(String, nullable=True)
