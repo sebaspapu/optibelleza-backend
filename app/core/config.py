@@ -53,6 +53,10 @@ class Settings(BaseSettings):
         env_file_encoding = "utf-8"
 
 
+from dotenv import load_dotenv
+import os
+load_dotenv()
+
 settings = Settings()
 
 # Ajuste mínimo de URLs según el ambiente (no cambia otras partes del código).

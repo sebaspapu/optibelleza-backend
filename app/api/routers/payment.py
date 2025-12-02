@@ -20,7 +20,7 @@ from app.core import oauth2
 import stripe
 from app.core.config import settings, origin_matches_frontend
 from typing import List
-from stripe import SignatureVerificationError
+from stripe.error import SignatureVerificationError
 from app.infra.email import send_order_notification
 
 logger = logging.getLogger("uvicorn.error")
