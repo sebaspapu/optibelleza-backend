@@ -20,7 +20,7 @@ from app.core import oauth2
 import stripe
 from app.core.config import settings, origin_matches_frontend
 from typing import List
-from stripe import SignatureVerificationError
+from stripe.error import SignatureVerificationError
 from app.infra.email import send_order_notification
 
 logger = logging.getLogger("uvicorn.error")
@@ -105,7 +105,7 @@ async def create_checkout_session(
 
             line_items.append({
                 'price_data': {
-                    'currency': 'usd',
+                    'currency': 'cop',
                     'product_data': {
                         'name': product.name,
                         'images': [product.product_image] if product.product_image else [],

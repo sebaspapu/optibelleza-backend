@@ -1,4 +1,5 @@
 from fastapi import FastAPI,Depends,HTTPException,APIRouter,status,Header
+import stripe
 from sqlalchemy.orm import Session
 from app.db.session import get_db
 
@@ -21,6 +22,8 @@ from app.core.config import settings, origin_matches_frontend
 from app.infra.email import send_order_notification
 
 router=APIRouter()
+
+stripe.api_key = settings.stripe_secret_key
 
 async def admin_signal():
        for client in websocket_connections_admin:
@@ -66,6 +69,9 @@ async def create_order(order:schemas_order.OrderAdd,db: Session = Depends(get_db
     user_email=db.query(models_user.User).filter(models_user.User.id==id).first()
     cart_items=db.query(models_cart.Cart).filter(models_cart.Cart.owner_id==id).all()
     products=db.query(product_models.Shoes).all()
+    
+    line_items = []
+
     for cart_item in cart_items:
         # Create an order item with data from the cart item
         order_item = models_orders.Orders()
@@ -93,6 +99,19 @@ async def create_order(order:schemas_order.OrderAdd,db: Session = Depends(get_db
         order_item.total_price = item_total
         
         db.add(order_item)
+
+        # Add to stripe line items
+        line_items.append({
+            'price_data': {
+                'currency': 'cop',
+                'product_data': {
+                    'name': cart_item.product_name,
+                },
+                'unit_amount': int(cart_item.price * 100),
+            },
+            'quantity': cart_item.product_quantity,
+        })
+
     db.query(models_cart.Cart).filter(models_cart.Cart.owner_id==id).delete(synchronize_session=False)
     
    
@@ -112,7 +131,18 @@ async def create_order(order:schemas_order.OrderAdd,db: Session = Depends(get_db
     if not origin_matches_frontend(origin):
         await admin_signal()
 
-    return order_item
+    # Create Stripe Checkout Session
+    try:
+        checkout_session = stripe.checkout.Session.create(
+            payment_method_types=['card'],
+            line_items=line_items,
+            mode='payment',
+            success_url=f"{settings.frontend_base_url}/orders",
+            cancel_url=f"{settings.frontend_base_url}/checkout",
+        )
+        return {"checkout_url": checkout_session.url}
+    except Exception as e:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
 
 # eliminar una orden
 @router.get("/api/order/delete_order/{id}", tags=["Order Management"])
