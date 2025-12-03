@@ -28,6 +28,7 @@ s3 = boto3.client(
         aws_access_key_id=AWS_ACCESS_KEY or None,
         aws_secret_access_key=settings.aws_secret_key or None,
         region_name=AWS_REGION or None,
+
 )
 
 router=APIRouter()
@@ -137,7 +138,7 @@ async def create_product_mounts(shoes:schemas.ShoesCreate,db: Session = Depends(
             stripe_price = stripe.Price.create(
                 product=stripe_product.id,
                 unit_amount=int(shoes.price * 100),  # Stripe usa centavos
-                currency='usd'
+                currency='cop'
             )
             print(f"Nuevo precio creado en Stripe: {stripe_price.id}")
 
@@ -185,7 +186,7 @@ async def update_product_mount_by_id(id:int,post:schemas.ShoesUpdate,db: Session
             new_stripe_price = stripe.Price.create(
                 product=shoes.stripe_product_id,
                 unit_amount=int(post.price * 100),
-                currency='usd'
+                currency='cop'
             )
             # Actualizar el ID del precio en nuestro modelo
             post.stripe_price_id = new_stripe_price.id

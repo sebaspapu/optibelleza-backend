@@ -105,7 +105,7 @@ async def create_checkout_session(
 
             line_items.append({
                 'price_data': {
-                    'currency': 'usd',
+                    'currency': 'cop',
                     'product_data': {
                         'name': product.name,
                         'images': [product.product_image] if product.product_image else [],

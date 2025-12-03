@@ -12,7 +12,7 @@ class Settings(BaseSettings):
     debug: bool = True
     # Base URLs (useful to centralize frontend/backend endpoints)
     backend_base_url: str = "http://127.0.0.1:8000"
-    frontend_base_url: str = "http://127.0.0.1:3000"
+    frontend_base_url: str = "http://localhost:5173"
     websocket_url: str = "ws://127.0.0.1:8000/ws1"
     # CORS origins can be provided as a comma-separated string in the env
     cors_origins: str = "http://127.0.0.1:3000"
