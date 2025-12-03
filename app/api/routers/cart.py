@@ -58,7 +58,8 @@ async def add_item_cart(shoes_id:cart.CartAdd,db: Session = Depends(get_db),curr
         print(f"💰 Precio: ${product_models.Shoes.price}")
         print(f"📧 Email del usuario: {user_email.email}")
         cart_all=db.query(models_cart.Cart).filter(models_cart.Cart.owner_email==user_email.email).all()
-        new_item=models_cart.Cart(product_id=shoes.id,size=shoes_id.size,product_quantity=shoes_id.product_quantity,owner_email=user_email.email,owner_id=id,product_image=shoes.product_image,price=shoes.price,product_name=shoes.name, shoes_category=shoes.shoes_category)
+        # new_item=models_cart.Cart(product_id=shoes.id,size=shoes_id.size,product_quantity=shoes_id.product_quantity,owner_email=user_email.email,owner_id=id,product_image=shoes.product_image,price=shoes.price,product_name=shoes.name, shoes_category=shoes.shoes_category)
+        new_item=models_cart.Cart(product_id=shoes.id,product_quantity=shoes_id.product_quantity,owner_email=user_email.email,owner_id=id,product_image=shoes.product_image,price=shoes.price,product_name=shoes.name, shoes_category=shoes.shoes_category)
         shoes_stock_row = db.query(product_models.Shoes).filter(product_models.Shoes.id==shoes_id.id).first()
         shoes_stock = int(shoes_stock_row.shoes_stock or 0) if shoes_stock_row else 0
         try:
@@ -160,17 +161,17 @@ async def delete_item_cart(name:str,db: Session = Depends(get_db),current_user:i
 
 # actualizar talla de la montura
 ## queda pendiente cambiar el tipo de string 
-@router.put("/api/cart/set_item_size", tags=["Shopping Cart"])
-async def update_size_mount_in_cart(size:schemas_product.ProductSize,db: Session = Depends(get_db),current_user:int=Depends(oauth2.get_current_user),origin: str = Header(None)):  
-       id=dict(current_user["token_data"])["id"] 
-       user_email=db.query(models.User).filter(models.User.id==id).first()
-       cart_all=db.query(models_cart.Cart).filter(models_cart.Cart.owner_email==user_email.email, models_cart.Cart.product_name==size.product_name)
-       if cart_all.first()==None:
-          raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,detail=f"post with id:{id} not found")
-       cart_all.update({"size":size.size},synchronize_session=False)
-       db.commit()
-       #if str(origin)=="http://localhost:3001":
-       if origin_matches_frontend(origin):
-         # Iterate over connected WebSocket clients and send a message
-         await client_signal()
-       return {"message":"size set"}
+# @router.put("/api/cart/set_item_size", tags=["Shopping Cart"])
+# async def update_size_mount_in_cart(size:schemas_product.ProductSize,db: Session = Depends(get_db),current_user:int=Depends(oauth2.get_current_user),origin: str = Header(None)):  
+#        id=dict(current_user["token_data"])["id"] 
+#        user_email=db.query(models.User).filter(models.User.id==id).first()
+#        cart_all=db.query(models_cart.Cart).filter(models_cart.Cart.owner_email==user_email.email, models_cart.Cart.product_name==size.product_name)
+#        if cart_all.first()==None:
+#           raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,detail=f"post with id:{id} not found")
+#        cart_all.update({"size":size.size},synchronize_session=False)
+#        db.commit()
+#        #if str(origin)=="http://localhost:3001":
+#        if origin_matches_frontend(origin):
+#          # Iterate over connected WebSocket clients and send a message
+#          await client_signal()
+#        return {"message":"size set"}
