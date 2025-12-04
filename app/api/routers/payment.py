@@ -34,7 +34,7 @@ logger.info(f"🔐 Stripe API key configurada: {stripe.api_key[:8]}********")
 
 
 # URL base para redirecciones después del pago
-YOUR_DOMAIN = settings.frontend_base_url or "http://localhost:3000"
+YOUR_DOMAIN = settings.frontend_base_url
 
 @router.post("/api/checkout/create-session")
 async def create_checkout_session(
@@ -271,7 +271,7 @@ async def stripe_webhook(request: Request, db: Session = Depends(get_db)):
                 # Obtener los items del carrito
                 cart_items = db.query(models_cart.Cart).filter(models_cart.Cart.owner_id == user_id).all()
                 if not cart_items:
-                    logger.warning("⚠️ Advertencia: No se encontraron items en el carrito")
+                    logger.info("⚠️ Advertencia: No se encontraron items en el carrito")
 
                 # Crear la orden
                 logger.info("=== Procesando pago completado ===")
